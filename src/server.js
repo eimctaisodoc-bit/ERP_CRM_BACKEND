@@ -29,8 +29,9 @@ app.use(express.urlencoded({ extended: true })); // parse form bodies
 app.use(cookieParser());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true,
+     origin: "*"
+    // origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    // credentials: true,
   })
 );
 
