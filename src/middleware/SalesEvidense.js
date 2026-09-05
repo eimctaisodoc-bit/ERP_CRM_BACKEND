@@ -1,8 +1,10 @@
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const os = require("os"); // Added OS module
 
-const dir = path.join(__dirname, "../uploads/SalesEvidense");
+// 1. Change the directory to the writable /tmp folder
+const dir = path.join(os.tmpdir(), "SalesEvidense");
 
 if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir, { recursive: true });
