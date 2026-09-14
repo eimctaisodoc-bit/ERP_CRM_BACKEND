@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const userScheme = require('../../Usersmodel/UserSchema.js')
+const Branch = require("../../Usersmodel/supper/model.branch")
 
 const VerifyLoginUser = async (req, res, next) => {
     console.log("Login attempt:", req.body);
@@ -19,7 +21,13 @@ const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const user = await userScheme.findById({_id: id});
+        if (!mongoose.isValidObjectId(id)) {
+            return res.status(400).json({ message: "Invalid user id" });
+        }
+
+        const user = await userScheme.findById({ _id: id })
+            || await Branch.findById({ _id: id });
+
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });

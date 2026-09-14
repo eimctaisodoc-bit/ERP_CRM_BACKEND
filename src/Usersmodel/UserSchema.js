@@ -81,4 +81,4 @@ const LoginSchema = new mongoose.Schema({
 
 }, { id: true, timestamps: true });
 
-module.exports = mongoose.model('logins', LoginSchema);
+module.exports = mongoose.model('staffs_', LoginSchema);

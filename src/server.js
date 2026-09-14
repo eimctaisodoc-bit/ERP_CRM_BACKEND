@@ -34,6 +34,15 @@ app.use(
     // credentials: true,
   })
 );
+// app.use(
+//   cors({
+//     origin: "*",
+//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"]
+//   })
+// );
+
+
 
 const bcrypt = require("bcrypt");
 // this below for temp.
@@ -52,9 +61,14 @@ app.get('/dummy', async (req, res) => {
 // Password: DMqKDuI!
 
 // Role: admin
+<<<<<<< HEAD
 
 app.get('/',(req,res)=>{
   return res.status(200).json({message:"Welcome to the API"} ,req?.user )
+=======
+app.get('/', (req, res) => {
+  return res.status(200).json({ message: "Welcome to the API" }, req?.user)
+>>>>>>> d20690e (Update backend code)
 
 })
 

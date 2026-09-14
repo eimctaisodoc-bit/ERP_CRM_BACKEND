@@ -3,6 +3,8 @@ const UserSchema = require("../../Usersmodel/UserSchema");
 const sendAccountCredentialsMail = require("../../middleware/Sendpw");
 const sendPasswordResetMail = require("../../middleware/pwResetLinkmail");
 
+console.log("UserSchema model type:", UserSchema.collection.name);
+
 const AdminGenerated = async (req, res) => {
     try {
         const payload = req.body;

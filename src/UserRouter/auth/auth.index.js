@@ -8,6 +8,8 @@ const bcrypt = require("bcrypt");
 const { getGoogleClient, db, listAllFiles } = require("../../driveAPI/config");
 const Branch = require("../../Usersmodel/supper/model.branch");
 
+console.log("Branch model type:", UserSchema.collection.name);
+
 
 
 router.post("/login", async (req, res) => {
@@ -15,11 +17,20 @@ router.post("/login", async (req, res) => {
     const { username, password, role } = req.body;
 
 
-    // Find User
-    const user = await UserSchema.findOne({
+    // Find User or Branch
+    let user = await UserSchema.findOne({
       username: username.trim(),
       role
     });
+    
+    const isBranchUser = !user;
+
+    if (isBranchUser) {
+      user = await Branch.findOne({
+        username: username.trim(),
+        role
+      });
+    }
 
     if (!user) {
       return res.status(401).json({
@@ -29,7 +40,11 @@ router.post("/login", async (req, res) => {
     }
 
     // Check Status
-    if (!user.isActive) {
+    const isActive = isBranchUser
+      ? user.status?.toLowerCase() === "active"
+      : user.isActive;
+
+    if (!isActive) {
       return res.status(403).json({
         success: false,
         message: "Account is inactive"

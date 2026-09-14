@@ -1,5 +1,7 @@
 const adminFormRecruitmentSchema = require('../../Usersmodel/admini/AdminRecruitment.model.js');
 
+console.log("adminFormRecruitmentSchema model type:", adminFormRecruitmentSchema.collection.name);
+
 const createRecruitmentForm = async (req, res) => {
   console.log(req.body)
   console.log(req.files)
