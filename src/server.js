@@ -29,9 +29,9 @@ app.use(express.urlencoded({ extended: true })); // parse form bodies
 app.use(cookieParser());
 app.use(
   cors({
-     origin: "*"
-    // origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    // credentials: true,
+    //  origin: "*",
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
   })
 );
 // app.use(
@@ -56,19 +56,21 @@ app.get('/dummy', async (req, res) => {
 // Password: GbfkBGKc
 
 // Role: staff
+
 // Username: gitapoudel4694#
 
 // Password: DMqKDuI!
 
 // Role: admin
-<<<<<<< HEAD
+// <<<<<<< HEAD
 
 app.get('/',(req,res)=>{
   return res.status(200).json({message:"Welcome to the API"} ,req?.user )
-=======
+})
+// =======
 app.get('/', (req, res) => {
   return res.status(200).json({ message: "Welcome to the API" }, req?.user)
->>>>>>> d20690e (Update backend code)
+// >>>>>>> d20690e (Update backend code)
 
 })
 
@@ -84,10 +86,10 @@ if (require.main === module) {
   const server = http.createServer(app);
   initSocket(server);
 
-  const port = process.env.PORT || 5000;
-  server.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-  });
+  // const port = process.env.PORT || 5000;
+//   server.listen(port, () => {
+//     console.log(`Server running on port ${port}`);
+//   });
 }
 
-module.exports = app;
+module.exports = app

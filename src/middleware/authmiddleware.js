@@ -1,4 +1,6 @@
 const { verifyTokenJWT } = require("../middleware/tokengerate.js");
+const jwt = require("jsonwebtoken");
+const { endUserSession } = require("../services/userStatus.service");
 
 const verifyToken = (req, res, next) => {
   try {
@@ -31,6 +33,12 @@ const verifyToken = (req, res, next) => {
 
   } catch (err) {
     console.error("JWT Error:", err.message);
+    const decoded = token ? jwt.decode(token) : null;
+    if (err.name === "TokenExpiredError" && decoded?.sessionRef) {
+      endUserSession(decoded.sessionRef, "token_expired").catch((historyError) => {
+        console.error("Session expiry history error:", historyError);
+      });
+    }
     return res.status(401).json({
       message: "Invalid or expired token"
     });

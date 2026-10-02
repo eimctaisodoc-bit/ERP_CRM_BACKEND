@@ -7,6 +7,8 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const { getGoogleClient, db, listAllFiles } = require("../../driveAPI/config");
 const Branch = require("../../Usersmodel/supper/model.branch");
+const { randomUUID } = require("crypto");
+const { startUserSession, endUserSession } = require("../../services/userStatus.service");
 
 console.log("Branch model type:", UserSchema.collection.name);
 
@@ -64,11 +66,21 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    const sessionRef = randomUUID();
+
     // Generate JWT
     const token = generateToken({
       id: user._id,
       username: user.username,
-      role: user.role
+      role: user.role,
+      sessionRef
+    });
+
+    await startUserSession({
+      sessionRef,
+      userId: user._id,
+      role: user.role,
+      email: user.officeEmail || user.personalEmail || ""
     });
 
     // Cookie
@@ -115,11 +127,15 @@ router.get("/me", verifyToken, (req, res) => {
 });
 
 // 🚪 LOGOUT
-router.post("/logout", (req, res) => {
-  console.log('logout route hit')
-  res.clearCookie("token__");
-  // console.log('logout is operate.')
-  return res.json({ logout: true, message: "Logged out" });
+router.post("/logout", verifyToken, async (req, res) => {
+  try {
+    await endUserSession(req.user.decoded.sessionRef, "logout");
+    res.clearCookie("token__");
+    return res.json({ logout: true, message: "Logged out" });
+  } catch (error) {
+    console.error("Logout history error:", error);
+    return res.status(500).json({ message: "Could not record logout" });
+  }
 });
 
 
