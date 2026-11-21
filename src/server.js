@@ -84,23 +84,23 @@ app.use("/admin", verifyToken, authorizeRoles(["admin"]), adminRoutes);
 app.use("/client", verifyToken, authorizeRoles(["client"]), clientRoutes);
 app.use("/staff", verifyToken, authorizeRoles(["staff"]), staffRoutes);
 
-if (require.main === module) {
-  const startServer = async () => {
-    await connectDB();
+// if (require.main === module) {
+//   const startServer = async () => {
+//     await connectDB();
 
-    const server = http.createServer(app);
-    initSocket(server);
+//     const server = http.createServer(app);
+//     initSocket(server);
 
-    const port = process.env.PORT || 5000;
-    server.listen(port, () => {
-      console.log(`Server running on port ${port}`);
-    });
-  };
+//     const port = process.env.PORT || 5000;
+//     server.listen(port, () => {
+//       console.log(`Server running on port ${port}`);
+//     });
+//   };
 
-  startServer().catch((error) => {
-    console.error("Server startup failed:", error.message);
-    process.exitCode = 1;
-  });
-}
+//   startServer().catch((error) => {
+//     console.error("Server startup failed:", error.message);
+//     process.exitCode = 1;
+//   });
+// }
 
-// module.exports = app
+module.exports = app
