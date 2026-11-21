@@ -49,7 +49,7 @@ const staticNotifications = [
 
 const initSocket = (server) => {
   const io = new Server(server, {
-    cors: { origin: "http://localhost:5173", credentials: true },
+    cors: { origin: "http://localhost:5173" || process.env.FRONTEND_URL_PROD, credentials: true },
   });
 
   const users = new Map();
