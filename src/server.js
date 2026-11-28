@@ -19,10 +19,15 @@ const { initSocket } = require("./socket/socket");
 const loginRoute = require("./login/LoginController");
 
 const app = express();
-const allowedOrigins = [
-  process.env.FRONTEND_URL_PROD,
-  "http://localhost:5173",
-].filter(Boolean);
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("MongoDB connection failed:", err);
+    res.status(500).json({ error: "Database connection failed" });
+  }
+});
 
 app.use("/backend/public", express.static(path.join(__dirname, "../public")));
 
@@ -31,11 +36,19 @@ app.use(express.urlencoded({ extended: true })); // parse form bodies
 app.use(cookieParser());
 app.use(
   cors({
-    origin: allowedOrigins,
+    //  origin: "*",
+    origin: process.env.FRONTEND_URL_PROD || "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   }),
 );
+// app.use(
+//   cors({
+//     origin: "*",
+//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"]
+//   })
+// );
 
 const bcrypt = require("bcrypt");
 const UserSchema = require("./Usersmodel/UserSchema");
@@ -49,14 +62,15 @@ app.get("/dummy", async (req, res) => {
 });
 
 // ===========================
+// role:admin, pw:Jlbn#NyH,
+// Username:sumanthapa7954#
+// jobrole:cro
 
-// aNmnVAk@9Fx# -->menukakharel2838*
-// r!Y3EsgaJv2K--->laxmidahal4180*
-// manojthakur6165#
-// GNZ7chY4rW#i
+// manojthakur1378!
+// sales
+// bvXMRulL
+
 // <<<<<<< HEAD
-// RJ5S@G5tG6cv
-// karkibahadurnisha2225@
 
 app.get("/", async (req, res) => {
   const user = await UserSchema.findOne();
@@ -79,23 +93,25 @@ app.use("/admin", verifyToken, authorizeRoles(["admin"]), adminRoutes);
 app.use("/client", verifyToken, authorizeRoles(["client"]), clientRoutes);
 app.use("/staff", verifyToken, authorizeRoles(["staff"]), staffRoutes);
 
-if (require.main === module) {
-  const startServer = async () => {
-    await connectDB();
 
-    const server = http.createServer(app);
-    initSocket(server);
 
-    const port = process.env.PORT || 5000;
-    server.listen(port, () => {
-      console.log(`Server running on port ${port}`);
-    });
-  };
+// if (require.main === module) {
+//   const startServer = async () => {
+//     await connectDB();
 
-  startServer().catch((error) => {
-    console.error("Server startup failed:", error.message);
-    process.exitCode = 1;
-  });
-}
+//     const server = http.createServer(app);
+//     initSocket(server);
 
-// module.exports = app
+//     const port = process.env.PORT || 5000;
+//     server.listen(port, () => {
+//       console.log(`Server running on port ${port}`);
+//     });
+//   };
+
+//   startServer().catch((error) => {
+//     console.error("Server startup failed:", error.message);
+//     process.exitCode = 1;
+//   });
+// }
+
+module.exports = app
