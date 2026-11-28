@@ -7,9 +7,11 @@ const UserSchema = require("../Usersmodel/UserSchema");
 
 const clientsRegisters = require("../Usersmodel/client/client.Register_schema");
 
+let io;
+
 const getAccountModel = (role) => {
   if (role === "admin") return Branch;
-  if (role === "staff") return UserSchema;
+  if (role === "staff" || role === "super_admin") return UserSchema;
   if (role === "client") return clientsRegisters;
   return null;
 };
@@ -48,10 +50,17 @@ const staticNotifications = [
 ];
 
 const initSocket = (server) => {
-  const io = new Server(server, {
-    cors: { origin: "http://localhost:5173", credentials: true },
+  io = new Server(server, {
+    cors: {
+      origin: [
+        process.env.FRONTEND_URL_PROD,
+        "http://localhost:5173",
+      ].filter(Boolean),
+      credentials: true,
+    },
   });
-
+// manojthakur6165#
+// GNZ7chY4rW#i
   const users = new Map();
 
   io.use(async (socket, next) => {
@@ -63,7 +72,7 @@ const initSocket = (server) => {
 
       const decoded = jwt.verify(token, process.env.Secrete_KEY);
 
-      if (["admin", "staff", "client"].includes(decoded.role)) {
+      if (["admin", "staff", "super_admin", "client"].includes(decoded.role)) {
         try {
           if (await findDisabledAccount(decoded)) {
             return next(new Error("Account disabled"));
@@ -100,7 +109,7 @@ const initSocket = (server) => {
     let accountStatusTimer = null;
     let checkingAccountStatus = false;
 
-    if (["admin", "staff", "client"].includes(role)) {
+    if (["admin", "staff", "super_admin", "client"].includes(role)) {
       accountStatusTimer = setInterval(async () => {
         if (checkingAccountStatus) return;
         checkingAccountStatus = true;
@@ -253,4 +262,20 @@ const initSocket = (server) => {
   return io;
 };
 
-module.exports = { initSocket };
+const disconnectAccountSockets = (userId, role) => {
+  if (!io) return;
+  const normalizedRole =
+    typeof role === "string" ? role.trim().toLowerCase() : "";
+
+  for (const socket of io.sockets.sockets.values()) {
+    if (
+      String(socket.user?.id) === String(userId) &&
+      socket.user?.role === normalizedRole
+    ) {
+      socket.data.logoutReason = "account_disabled";
+      socket.disconnect(true);
+    }
+  }
+};
+
+module.exports = { initSocket, disconnectAccountSockets };

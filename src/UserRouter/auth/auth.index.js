@@ -3,10 +3,14 @@ const { google } = require("googleapis");
 
 const { generateToken } = require("../../middleware/tokengerate");
 const verifyToken = require("../../middleware/authmiddleware");
+
 const UserSchema = require("../../Usersmodel/UserSchema");
 const router = express.Router();
+
 const bcrypt = require("bcrypt");
+
 const { getGoogleClient, db, listAllFiles } = require("../../driveAPI/config");
+
 const Branch = require("../../Usersmodel/supper/model.branch");
 const { randomUUID } = require("crypto");
 const {
@@ -51,22 +55,19 @@ router.post("/login", async (req, res) => {
     let user;
     let isBranchUser = false;
 
-    if (normalizedRole === "client") {
+    if (normalizedRole === "admin") {
+      user = await Branch.findOne({
+        username: normalizedUsername,
+        role: normalizedRole,
+      });
+      isBranchUser = Boolean(user);
+    } else if (normalizedRole === "client") {
       user = await clientsRegisters.findOne({ username: normalizedUsername });
     } else {
       user = await UserSchema.findOne({
         username: normalizedUsername,
         role: normalizedRole,
       });
-
-      // Admin accounts created through branch management are stored as Branch records.
-      if (!user && normalizedRole === "admin") {
-        user = await Branch.findOne({
-          username: normalizedUsername,
-          role: normalizedRole,
-        });
-        isBranchUser = Boolean(user);
-      }
     }
 
     console.log("User lookup result:", {
@@ -120,10 +121,15 @@ router.post("/login", async (req, res) => {
     }
 
     const sessionRef = randomUUID();
+    const fullName =
+      normalizedRole === "super_admin"
+        ? "headOffice"
+        : user.fullName || user.fullname || user.username;
 
     // Generate JWT
     const token = generateToken({
       id: user._id,
+      fullName,
       username: user.username,
       role: normalizedRole,
       sessionRef,
@@ -152,7 +158,7 @@ router.post("/login", async (req, res) => {
       message: "Login successful",
       user: {
         id: user._id,
-        fullName: user?.fullName || user?.fullname || user?.contactPersonName,
+        fullName,
         username: user.username,
         role: normalizedRole,
         officeEmail: user.officeEmail,
@@ -261,7 +267,7 @@ router.get("/list-files", verifyToken, async (req, res) => {
     const client = getGoogleClient(userId);
     client.setCredentials(userTokens);
     const drive = google.drive({ version: "v3", auth: client });
-    const files = await listAllFiles(drive);
+    const files = await listAllFiles(drive, "14boBPONFtnNvk82r4flPOUTOZiMcqnMB");
 
     /* console.log(`${files.length} files loaded`); */
     return res.json({ success: true, totalFiles: files.length, files });

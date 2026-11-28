@@ -81,15 +81,34 @@ const generateLeadID = async () => {
 };
 
 const getSalesData = async (req, res) => {
-  // console.log("getSalesData ", staffSalesSchema.collection.name);
   try {
-    const response = await staffSalesSchema.find();
-    // console.log(response)
-    res.status(201).json({ success: true, data: response });
+    const { province, provinceName, districtName, localLevel } = req.query; // e.g., ?province=2
+    console.log("Received query parameters:", { province, provinceName, districtName, localLevel });
+
+
+
+    const response = await staffSalesSchema.find({
+      // "organizationDetails.province": Number(province),
+      "leadDetails.province": provinceName,
+      "leadDetails.district": districtName,
+      "leadDetails.localLevel": localLevel,
+      "organizationDetails.standard.0": "iso21001"
+
+
+    });
+
+    res.status(200).json({
+      success: true,
+      data: response,
+    });
   } catch (error) {
-    res.status(404).json({ error: true, error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 };
+
 
 // new Meetings
 const Meetings_ = async (req, res) => {
@@ -1465,6 +1484,7 @@ const Proposal = async (req, res) => {
       .filter((item) => item.success)
       .map((item) => item.recipient);
 
+    const sentAt = successfulRecipients.length > 0 ? new Date() : null;
     const newProposal = {
       ...data,
 
@@ -1474,14 +1494,16 @@ const Proposal = async (req, res) => {
 
       attachments: formattedAttachments,
 
-      ...(successfulRecipients.length > 0 && {
-        emailInfo: {
-          to: successfulRecipients,
-          subject,
-          message,
-          sentAt: new Date(),
-        },
-      }),
+      emailSent,
+      emailResults,
+      emailErrors,
+      emailInfo: {
+        to: successfulRecipients,
+        attemptedTo: recipients,
+        subject,
+        message,
+        sentAt,
+      },
 
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -1558,6 +1580,8 @@ const Proposal = async (req, res) => {
     });
   }
 };
+
+
 
 const GetProposals = async (req, res) => {
   const { MainID } = req.params;
@@ -1655,70 +1679,565 @@ const DeleteProposal = async (req, res) => {
   }
 };
 
-const UpdateProposal = async (req, res) => {
-  const { MainID, proposalId } = req.params;
-  const payload = req.body;
+const Contract = async (req, res) => {
+  const { MainID } = req.params;
 
-  if (!MainID || !proposalId) {
-    return res
-      .status(400)
-      .json({ error: true, message: "MainID and proposalId are required." });
+  if (!MainID || !mongoose.Types.ObjectId.isValid(MainID)) {
+    return res.status(400).json({
+      error: true,
+      message: "Invalid MainID",
+    });
   }
 
+  const { status, contractId } = req.body;
+  console.log("Contract Request Body:", req.body);
+
   try {
-    // 1. Dynamically construct the $set object based on provided payload
-    const updateFields = {};
-    for (const key in payload) {
-      // Prevent accidental overwrites of locked fields like _id
-      if (key !== "_id" && key !== "timestamp") {
+    // ==========================================
+    // 1. UPDATE EXISTING CONTRACT STATUS
+    // ==========================================
+
+    if (contractId) {
+      if (!mongoose.Types.ObjectId.isValid(contractId)) {
+        return res.status(400).json({
+          error: true,
+          message: "A valid contractId is required.",
+        });
+      }
+
+      const existingContract = await staffSalesSchema.exists({
+        _id: MainID,
+        "details.stages.Stage3.contractInfo._id": contractId,
+      });
+
+      if (!existingContract) {
+        return res.status(404).json({
+          error: true,
+          message: "Contract not found.",
+        });
+      }
+
+      const updateFields = {
+        "details.$[det].stages.Stage3.$[stage].contractInfo.$[contract].updatedAt":
+          new Date(),
+      };
+
+      if (status !== undefined) {
         updateFields[
-          `details.$[det].stages.Stage2.$[stg].proposalInfo.$[prop].${key}`
-        ] = payload[key];
+          "details.$[det].stages.Stage3.$[stage].contractInfo.$[contract].status"
+        ] = status;
+      }
+
+      await staffSalesSchema.findOneAndUpdate(
+        { _id: MainID },
+        {
+          $set: updateFields,
+        },
+        {
+          arrayFilters: [
+            { "det._id": { $exists: true } },
+            { "stage._id": { $exists: true } },
+            {
+              "contract._id": new mongoose.Types.ObjectId(contractId),
+            },
+          ],
+          new: true,
+        },
+      );
+
+      return res.status(200).json({
+        success: true,
+        contractId,
+        status,
+        message: `Contract marked ${status}.`,
+      });
+    }
+
+    // ==========================================
+    // 2. GET UPLOADED DOCX FILES
+    // ==========================================
+
+    const uploadedFiles = req.files || (req.file ? [req.file] : []);
+
+    if (!uploadedFiles.length) {
+      return res.status(400).json({
+        error: true,
+        message: "Please upload a DOCX contract.",
+      });
+    }
+
+    // ==========================================
+    // 3. CONVERT DOCX INTO PDF
+    // ==========================================
+
+    const formattedAttachments = [];
+    const pdfEmailAttachments = [];
+
+    for (const file of uploadedFiles) {
+      const ext = path.extname(file.originalname).toLowerCase();
+
+      if (ext !== ".docx") {
+        return res.status(400).json({
+          error: true,
+          message: "Only DOCX contract files are allowed.",
+        });
+      }
+
+      // Convert DOCX to PDF
+      const { pdfPath, pdfName } = await convertDocxToPdf(file.path);
+
+      // Save both DOCX and PDF paths for MongoDB
+      formattedAttachments.push(file.path, pdfPath);
+
+      // Prepare PDF attachment for Gmail
+      pdfEmailAttachments.push({
+        filename: pdfName,
+        path: pdfPath,
+        contentType: "application/pdf",
+      });
+    }
+
+    // ==========================================
+    // 4. EXTRACT CONTRACT DATA
+    // ==========================================
+
+    let data = req.body.contractData ?? req.body;
+
+    if (typeof data === "string") {
+      data = JSON.parse(data);
+    }
+
+    if (Array.isArray(data)) {
+      data = data[0] ?? {};
+    }
+
+    if (!data || typeof data !== "object") {
+      data = {};
+    }
+
+    // ==========================================
+    // 5. EXTRACT EMAIL & PREPARED_BY INFORMATION
+    // ==========================================
+
+    const subject = req.body.subject || data.subject || "";
+
+    const message =
+      req.body.message ||
+      req.body.emailBody ||
+      req.body.note ||
+      data.message ||
+      "";
+
+    const preparedBy =
+      req.body.preparedBy || data.preparedBy || req.user?.name || "";
+
+    let rawTo =
+      req.body.emilto ||
+      req.body.emailTo ||
+      req.body["emailTo[]"] ||
+      req.body.to ||
+      req.body.sendto ||
+      data.sendto ||
+      [];
+    console.log("Raw To:", rawTo);
+
+    // Handle JSON-stringified recipient arrays
+    if (typeof rawTo === "string") {
+      try {
+        const parsed = JSON.parse(rawTo);
+        rawTo = Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        rawTo = rawTo.split(",");
       }
     }
 
-    // If no valid fields to update were sent
-    if (Object.keys(updateFields).length === 0) {
-      return res
-        .status(400)
-        .json({ error: true, message: "No valid fields provided for update." });
+    // Remove duplicate recipients
+    const recipients = [
+      ...new Set(
+        (Array.isArray(rawTo) ? rawTo : [rawTo])
+          .filter(Boolean)
+          .map((email) => String(email).trim())
+          .filter(Boolean),
+      ),
+    ];
+    console.log("Recipients:", recipients);
+
+    // ==========================================
+    // 6. SEND PDF THROUGH GMAIL
+    // ==========================================
+
+    let emailSent = false;
+    let emailResults = [];
+    let emailErrors = [];
+
+    if (recipients.length > 0) {
+      if (!subject || !message) {
+        emailErrors.push({
+          message: "Email subject and message are required.",
+        });
+      } else {
+        const results = await Promise.allSettled(
+          recipients.map((recipient) =>
+            sendMailWithAttachments({
+              to: recipient,
+              subject,
+              message,
+              attachments: pdfEmailAttachments.map((file) => ({
+                filename: file.filename,
+                path: file.path,
+                contentType: file.contentType,
+              })),
+            }),
+          ),
+        );
+
+        // Track each recipient
+        emailResults = results.map((result, index) => {
+          if (result.status === "fulfilled") {
+            return {
+              recipient: recipients[index],
+              success: true,
+              message: "Email sent successfully.",
+            };
+          }
+
+          const errorMessage =
+            result.reason?.message || "Email sending failed.";
+
+          emailErrors.push({
+            recipient: recipients[index],
+            message: errorMessage,
+          });
+
+          console.error(
+            `Email sending failed for ${recipients[index]}:`,
+            result.reason,
+          );
+
+          return {
+            recipient: recipients[index],
+            success: false,
+            message: errorMessage,
+          };
+        });
+
+        // True only when every recipient receives the email
+        emailSent =
+          results.length > 0 &&
+          results.every((result) => result.status === "fulfilled");
+      }
     }
 
-    // 2. Perform the update using arrayFilters
+    // ==========================================
+    // 7. PREPARE CONTRACT DATA FOR MONGODB
+    // ==========================================
+
+    const successfulRecipients = emailResults
+      .filter((item) => item.success)
+      .map((item) => item.recipient);
+
+    const newContract = {
+      ...data,
+      _id: new mongoose.Types.ObjectId(),
+      attachments: formattedAttachments,
+      sendto: successfulRecipients.length > 0 ? successfulRecipients : recipients,
+      subject,
+      message,
+      preparedBy,
+      status: successfulRecipients.length > 0 ? "sent" : "ready",
+      ...(successfulRecipients.length > 0 && {
+        emailInfo: {
+          to: successfulRecipients,
+          subject,
+          message,
+          sentAt: new Date(),
+        },
+      }),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // ==========================================
+    // 8. SAVE CONTRACT INTO MONGODB
+    // ==========================================
+
     const updatedDocument = await staffSalesSchema.findOneAndUpdate(
       { _id: MainID },
-      { $set: updateFields },
+      {
+        $push: {
+          "details.$[det].stages.Stage3.$[stage].contractInfo": newContract,
+        },
+      },
       {
         new: true,
         arrayFilters: [
-          { "det.stages": { $exists: true } }, // Matches details that have stages
-          { "stg.proposalInfo": { $exists: true } }, // Matches Stage2s that have proposalInfo
-          { "prop._id": proposalId }, // Matches the specific proposal ID
+          { "det._id": { $exists: true } },
+          { "stage._id": { $exists: true } },
         ],
       },
     );
 
     if (!updatedDocument) {
-      return res
-        .status(404)
-        .json({ error: true, message: "Document or Proposal not found." });
+      return res.status(404).json({
+        error: true,
+        message: "Contract lead not found.",
+      });
     }
+
+    // ==========================================
+    // 9. FINAL RESPONSE
+    // ==========================================
+
+    console.log("Contract saved successfully:", newContract._id);
+    console.log("Email sent:", emailSent);
+    console.log("Email errors:", emailErrors);
+
+    return res.status(201).json({
+      success: true,
+      contractId: newContract._id,
+      status: newContract.status,
+      preparedBy: newContract.preparedBy,
+      emailSent,
+      emailResults,
+      emailErrors,
+      attachments: formattedAttachments,
+      message:
+        recipients.length === 0
+          ? "Contract saved successfully. No email recipients provided."
+          : emailSent
+            ? "Contract emailed to all recipients and saved successfully."
+            : successfulRecipients.length > 0
+              ? "Contract saved successfully. Some emails failed to send."
+              : "Contract saved successfully, but email sending failed.",
+    });
+  } catch (error) {
+    console.error("Error in Contract Controller:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message:
+        error.message ||
+        "An internal server error occurred while processing the contract.",
+    });
+  }
+};
+// for installment and terms and conditions
+const UpdateInstallment = async (req, res) => {
+  try {
+    const { MainID } = req.params;
+    const { installment, mode = "set" } = req.body;
+
+    if (!MainID || !mongoose.Types.ObjectId.isValid(MainID)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid MainID",
+      });
+    }
+    if (installment === undefined || installment === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Installments are required",
+      });
+    }
+
+    const updatedDoc = await staffSalesSchema.findById(MainID);
+
+    if (!updatedDoc) {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    const organizationDetails = Array.isArray(updatedDoc.organizationDetails) &&
+      updatedDoc.organizationDetails.length
+      ? updatedDoc.organizationDetails
+      : (updatedDoc.organizationDetails = [{}]);
+    const installments = Array.isArray(installment) ? installment : [installment];
+    for (const details of organizationDetails) {
+      if (mode === "push") {
+        details.installment.push(...installments);
+      } else {
+        details.installment = installments;
+      }
+    }
+    await updatedDoc.save();
 
     return res.status(200).json({
       success: true,
-      message: "Proposal updated successfully.",
+      data: updatedDoc,
     });
   } catch (error) {
-    console.error("Error in UpdateProposal:", error);
     return res.status(500).json({
-      error: true,
-      message: "Server error while updating proposal.",
-      details: error.message,
+      success: false,
+      message: error.message,
     });
   }
 };
 
+const UpdateTermsAndConditions = async (req, res) => {
+  try {
+    const { MainID } = req.params;
+    const { termsCondition, mode = "set" } = req.body;
+
+    if (!MainID || !mongoose.Types.ObjectId.isValid(MainID)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid MainID",
+      });
+    }
+    if (termsCondition === undefined || termsCondition === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Terms and conditions are required",
+      });
+    }
+
+    const doc = await staffSalesSchema.findById(MainID);
+
+    if (!doc) {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    const organizationDetails = Array.isArray(doc.organizationDetails) &&
+      doc.organizationDetails.length
+      ? doc.organizationDetails
+      : (doc.organizationDetails = [{}]);
+    const clauses = Array.isArray(termsCondition)
+      ? termsCondition
+      : [termsCondition];
+    for (const details of organizationDetails) {
+      if (mode === "push") {
+        details.termsCondition.push(...clauses);
+      } else {
+        details.termsCondition = clauses;
+      }
+    }
+
+    const updatedDoc = await doc.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Terms and conditions updated successfully",
+      data: updatedDoc,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+const getOnlyInstallmentTerms = async (req, res) => {
+  try {
+    const { MainID } = req.params;
+
+    if (!MainID || !mongoose.Types.ObjectId.isValid(MainID)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid MainID",
+      });
+    }
+
+    const document = await staffSalesSchema.findById(MainID).select(
+      "organizationDetails.installment organizationDetails.termsCondition"
+    );
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        installment: document.organizationDetails?.[0]?.installment || [],
+        termsCondition: document.organizationDetails?.[0]?.termsCondition || [],
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+// end installment and terms and conditions
+
+// const UpdateProposal = async (req, res) => {
+//   const { MainID, proposalId } = req.params;
+//   const payload = req.body;
+
+//   if (!MainID || !proposalId) {
+//     return res
+//       .status(400)
+//       .json({ error: true, message: "MainID and proposalId are required." });
+//   }
+
+//   try {
+//     // 1. Dynamically construct the $set object based on provided payload
+//     const updateFields = {};
+//     for (const key in payload) {
+//       // Prevent accidental overwrites of locked fields like _id
+//       if (key !== "_id" && key !== "timestamp") {
+//         updateFields[
+//           `details.$[det].stages.Stage2.$[stg].proposalInfo.$[prop].${key}`
+//         ] = payload[key];
+//       }
+//     }
+
+//     // If no valid fields to update were sent
+//     if (Object.keys(updateFields).length === 0) {
+//       return res
+//         .status(400)
+//         .json({ error: true, message: "No valid fields provided for update." });
+//     }
+
+//     // 2. Perform the update using arrayFilters
+//     const updatedDocument = await staffSalesSchema.findOneAndUpdate(
+//       { _id: MainID },
+//       { $set: updateFields },
+//       {
+//         new: true,
+//         arrayFilters: [
+//           { "det.stages": { $exists: true } }, // Matches details that have stages
+//           { "stg.proposalInfo": { $exists: true } }, // Matches Stage2s that have proposalInfo
+//           { "prop._id": proposalId }, // Matches the specific proposal ID
+//         ],
+//       },
+//     );
+
+//     if (!updatedDocument) {
+//       return res
+//         .status(404)
+//         .json({ error: true, message: "Document or Proposal not found." });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Proposal updated successfully.",
+//     });
+//   } catch (error) {
+//     console.error("Error in UpdateProposal:", error);
+//     return res.status(500).json({
+//       error: true,
+//       message: "Server error while updating proposal.",
+//       details: error.message,
+//     });
+//   }
+// };
+
 //  End new new new new new new new new new new new
+
+
 
 const getDetailsData = async (req, res) => {
   // const id="289323ou98u3289u82"
@@ -1736,26 +2255,37 @@ const getDetailsData = async (req, res) => {
   }
 };
 
+
 const addOrgLeadDetails = async (req, res) => {
   try {
-    const { lead = {}, organization = {}, ownership = {} } = req.body;
+    const {
+      lead = {},
+      organization = {},
+      ownership = {},
+    } = req.body;
+
     console.log("Received organization and lead details:", {
       organization,
       lead,
       ownership,
     });
 
-    /* console.log('Received organization and lead details:', { organization, lead }); */
+    // ==========================================
+    // 1. ORGANIZATION DATA
+    // ==========================================
+
     const {
       organizationName,
       organizationType,
       industyType,
       registrationNumber,
       vatPan,
+
       provinceNumber: orgProvinceNumber,
-      province: orgProvince,
-      district: orgDistrict,
+      provinceName: orgProvince,
+      districtName: orgDistrict,
       localLevel: orgLocalLevel,
+
       totalEmp_learners,
       employeeRange,
       totalEducator,
@@ -1771,21 +2301,34 @@ const addOrgLeadDetails = async (req, res) => {
       alternativeContacts = [],
     } = organization;
 
+    // ==========================================
+    // 2. NORMALIZATION HELPERS
+    // ==========================================
+
     const normalizeText = (value) =>
       String(value || "")
         .trim()
         .replace(/\s+/g, " ")
         .toLowerCase();
+
     const normalizeEmail = (value) =>
       String(value || "")
         .trim()
         .toLowerCase();
-    const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+
+    const normalizePhone = (value) =>
+      String(value || "").replace(/\D/g, "");
+
+    // ==========================================
+    // 3. DUPLICATE VALIDATION
+    // ==========================================
 
     const existingOrganizations = await staffSalesSchema
       .find({}, { organizationDetails: 1 })
       .lean();
+
     const incomingOrgName = normalizeText(organizationName);
+
     const incomingEmails = new Set(
       [
         orgEmail,
@@ -1795,20 +2338,22 @@ const addOrgLeadDetails = async (req, res) => {
           : []),
       ]
         .map(normalizeEmail)
-        .filter(Boolean),
+        .filter(Boolean)
     );
+
     const incomingPhones = new Set(
       [
         orgTelephone,
         contactPersonNumber,
         ...(Array.isArray(alternativeContacts)
           ? alternativeContacts.map(
-              (contact) => contact.number || contact.contactPersonNumber,
-            )
+            (contact) =>
+              contact.number || contact.contactPersonNumber
+          )
           : []),
       ]
         .map(normalizePhone)
-        .filter(Boolean),
+        .filter(Boolean)
     );
 
     let duplicateName = false;
@@ -1817,6 +2362,8 @@ const addOrgLeadDetails = async (req, res) => {
 
     for (const record of existingOrganizations) {
       for (const existing of record.organizationDetails || []) {
+
+        // Organization name
         if (
           incomingOrgName &&
           normalizeText(existing.organizationName) === incomingOrgName
@@ -1824,31 +2371,36 @@ const addOrgLeadDetails = async (req, res) => {
           duplicateName = true;
         }
 
+        // Email
         const existingEmails = [
           existing.orgEmail,
           existing.contactPersonEmail,
           ...(existing.alternativeContacts || []).map(
-            (contact) => contact.email,
+            (contact) => contact.email
           ),
         ];
+
         if (
           existingEmails.some((email) =>
-            incomingEmails.has(normalizeEmail(email)),
+            incomingEmails.has(normalizeEmail(email))
           )
         ) {
           duplicateEmail = true;
         }
 
+        // Phone
         const existingPhones = [
           existing.orgTelephone,
           existing.contactPersonNumber,
           ...(existing.alternativeContacts || []).map(
-            (contact) => contact.number || contact.contactPersonNumber,
+            (contact) =>
+              contact.number || contact.contactPersonNumber
           ),
         ];
+
         if (
           existingPhones.some((phone) =>
-            incomingPhones.has(normalizePhone(phone)),
+            incomingPhones.has(normalizePhone(phone))
           )
         ) {
           duplicatePhone = true;
@@ -1869,9 +2421,22 @@ const addOrgLeadDetails = async (req, res) => {
       });
     }
 
+    // ==========================================
+    // 4. GENERATE LEAD ID
+    // ==========================================
+
     const leadID = await generateLeadID();
 
+    // ==========================================
+    // 5. SAVE ORGANIZATION + LEAD + OWNERSHIP
+    // ==========================================
+
     const addOrg = await staffSalesSchema.create({
+
+      // ------------------------------------------
+      // ORGANIZATION DETAILS
+      // ------------------------------------------
+
       organizationDetails: [
         {
           organizationName,
@@ -1879,53 +2444,98 @@ const addOrgLeadDetails = async (req, res) => {
           industyType,
           registrationNumber,
           vatPan,
+
           totalEmp_learners,
           employeeRange,
           totalEducator,
+
           orgEmail,
           orgTelephone,
+
           GradeFrom,
           GradeTo,
+
+          // Correct organization location mapping
           provinceNumber: orgProvinceNumber,
           province: orgProvince,
           district: orgDistrict,
           localLevel: orgLocalLevel,
+
           contactPersonName,
           role,
           contactPersonNumber,
           contactPersonEmail,
+
           standard,
           alternativeContacts,
         },
       ],
 
+      // ------------------------------------------
+      // LEAD DETAILS
+      // ------------------------------------------
+
       leadDetails: [
         {
           ...lead,
+
           leadID,
-          provinceNumber: lead.provinceNumber || orgProvinceNumber,
-          district: lead.district || orgDistrict,
-          localLevel: lead.localLevel || orgLocalLevel,
-          province: lead.province || orgProvince,
+
+          // Correct lead location mapping
+          // Lead location takes priority over organization location
+
+          provinceNumber:
+            lead.provinceNumber ?? orgProvinceNumber,
+
+          province:
+            lead.provinceName || orgProvince,
+
+          district:
+            lead.districtName || orgDistrict,
+
+          localLevel:
+            lead.localLevel || orgLocalLevel,
         },
       ],
+
+      // ------------------------------------------
+      // OWNERSHIP DETAILS
+      // ------------------------------------------
 
       ownershipDetails: [
         {
           ...ownership,
-          assignedSalesRep: ownership.assignedSalesRep || lead.assignedSalesRep,
-          salesManager: ownership.salesManager || lead.salesManager,
-          LeadPickDate: ownership.LeadPickDate || lead.LeadPickDate || "",
-          LeadPickTime: ownership.LeadPickTime || lead.LeadPickTime || "",
-          NextFollowup: ownership.NextFollowup || lead.NextFollowup || "",
-          NextFollowTime: ownership.NextFollowTime || lead.NextFollowTime || "",
+
+          assignedSalesRep:
+            ownership.assignedSalesRep ||
+            lead.assignedSalesRep,
+
+          salesManager:
+            ownership.salesManager ||
+            lead.salesManager,
+
+          LeadPickDate:
+            ownership.LeadPickDate ||
+            lead.LeadPickDate ||
+            "",
+
+          LeadPickTime:
+            ownership.LeadPickTime ||
+            lead.LeadPickTime ||
+            "",
         },
       ],
+
+      // ------------------------------------------
+      // SALES PIPELINE STAGES
+      // ------------------------------------------
 
       details: [
         {
           _id: new mongoose.Types.ObjectId(),
+
           stages: {
+
             Stage1: [
               {
                 isFilled: false,
@@ -1936,6 +2546,7 @@ const addOrgLeadDetails = async (req, res) => {
                 _id: new mongoose.Types.ObjectId(),
               },
             ],
+
             Stage2: [
               {
                 isFilled: false,
@@ -1946,6 +2557,7 @@ const addOrgLeadDetails = async (req, res) => {
                 _id: new mongoose.Types.ObjectId(),
               },
             ],
+
             Stage3: [
               {
                 isFilled: false,
@@ -1956,6 +2568,7 @@ const addOrgLeadDetails = async (req, res) => {
                 _id: new mongoose.Types.ObjectId(),
               },
             ],
+
             Stage4: [
               {
                 isFilled: false,
@@ -1964,28 +2577,40 @@ const addOrgLeadDetails = async (req, res) => {
                 active: true,
                 stageName: "scheduling",
                 _id: new mongoose.Types.ObjectId(),
+
                 holidayItems: [],
                 jobAssignItems: [],
               },
             ],
+
           },
         },
       ],
+
     });
 
-    res.status(201).json({
+    // ==========================================
+    // 6. SUCCESS RESPONSE
+    // ==========================================
+
+    return res.status(201).json({
       success: true,
       message: "Organization Details added successfully",
       data: addOrg,
     });
+
   } catch (error) {
+
     console.error("Error saving lead details:", error);
-    res.status(500).json({
+
+    return res.status(500).json({
       error: true,
       message: error.message || "Internal Server Error",
     });
+
   }
 };
+
 
 const getOnlyOrgDetails = async (req, res) => {
   const { _id } = req.query;
@@ -2230,6 +2855,12 @@ const updateSalesLead = async (req, res) => {
       isTerminated: contractIsTerminated,
       terminationReason_contract: terminationReasonContract,
     } = req.body || {};
+    console.log("Contract Status Request Check:", {
+      isConverted,
+      contractIsContracted,
+      contractIsTerminated,
+      terminationReasonContract,
+    });
     const isContractStatusRequest =
       isConverted !== undefined ||
       terminationReasonContract !== undefined ||
@@ -2519,7 +3150,13 @@ module.exports = {
   Proposal,
   GetProposals,
   DeleteProposal,
-  UpdateProposal,
+  // UpdateProposal,
+
+
+  Contract,
+  UpdateInstallment,
+  UpdateTermsAndConditions,
+  getOnlyInstallmentTerms
 };
 
 // 69e1e50021a886c29e61ea5d

@@ -174,38 +174,48 @@ function getGoogleClient(userId) {
 // PAGINATION
 // ==========================================
 
-async function listAllFiles(drive) {
+const escapeDriveQueryValue = (value) =>
+  String(value)
+    .trim()
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
+
+async function listAllFiles(drive, folderId) {
+  if (!drive) {
+    throw new Error("Google Drive client is required.");
+  }
+
+  const safeFolderId = escapeDriveQueryValue(folderId);
+  if (!safeFolderId) {
+    return [];
+  }
+
   let allFiles = [];
   let pageToken = null;
 
   do {
-    const response =
-      await drive.files.list({
-        pageSize: 1000,
+    const response = await drive.files.list({
+      q: `'${safeFolderId}' in parents and trashed = false`,
+      pageSize: 1000,
+      orderBy: "folder,name",
+      fields:
+        "nextPageToken, files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)",
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
+      ...(pageToken ? { pageToken } : {}),
+    });
 
-        fields:
-          "nextPageToken, files(id, name, size, mimeType, createdTime, webViewLink)",
+    const files = response.data.files || [];
+    allFiles = allFiles.concat(files);
+    pageToken = response.data.nextPageToken || null;
 
-        pageToken: pageToken || undefined,
-      });
-
-    if (response.data.files) {
-      allFiles = allFiles.concat(
-        response.data.files
-      );
-    }
-
-    pageToken =
-      response.data.nextPageToken || null;
-    /* console.log(
-      `📄 Fetched ${response.data.files.length} files. Total so far: ${allFiles.length}`
-    ); */
-
+    // console.log(
+    //   `[DMS] Folder ${safeFolderId} fetched ${files.length} items. Total so far: ${allFiles.length}`
+    // );
   } while (pageToken);
 
   return allFiles;
 }
-
 
 module.exports = {
   getGoogleClient,

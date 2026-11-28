@@ -1,4 +1,9 @@
+
 const mongoose = require("mongoose");
+
+// =========================================================
+// PREVIOUS EXPERIENCE SCHEMA
+// =========================================================
 
 const previousExperienceSchema = new mongoose.Schema(
   {
@@ -11,10 +16,15 @@ const previousExperienceSchema = new mongoose.Schema(
       trim: true,
     },
     startDate: {
-      type: Date,
+      type: String,
     },
     endDate: {
-      type: Date,
+      type: String,
+    },
+    level: {
+      type: String,
+      enum: ["Entry Level", "Mid Level", "Senior Level"],
+      default: "Entry Level",
     },
     tenure: {
       type: String,
@@ -24,11 +34,16 @@ const previousExperienceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// =========================================================
+// RECRUITMENT SCHEMA
+// =========================================================
+
 const recruitmentSchema = new mongoose.Schema(
   {
-    // =========================================================
+    // =====================================================
     // PERSONAL INFORMATION
-    // =========================================================
+    // =====================================================
+
     personal: {
       firstName: {
         type: String,
@@ -54,7 +69,7 @@ const recruitmentSchema = new mongoose.Schema(
       },
 
       dob: {
-        type: Date,
+        type: String,
       },
 
       maritalStatus: {
@@ -68,19 +83,26 @@ const recruitmentSchema = new mongoose.Schema(
         default: "Nepali",
       },
 
+      services: {
+        type: [String],
+        default: [],
+      },
+
       citizenshipId: {
         type: String,
         trim: true,
       },
 
       profilePhoto: {
-        type: String,
+        type: Array,
+        default: [],
       },
     },
 
-    // =========================================================
+    // =====================================================
     // CONTACT INFORMATION
-    // =========================================================
+    // =====================================================
+
     contact: {
       officeEmail: {
         type: String,
@@ -115,47 +137,47 @@ const recruitmentSchema = new mongoose.Schema(
       },
     },
 
-    // =========================================================
+    // =====================================================
     // EMPLOYMENT & ORGANIZATION
-    // =========================================================
+    // =====================================================
+
     employment: {
       department: {
         type: String,
         enum: [
           "Corporate HR",
-
           "Corporate CRO",
           "Corporate Sales",
           "Corporate Operations",
           "Corporate Reception",
           "Corporate Document Control",
           "Corporate IT Support",
-          "Consultancy"
+          "Corporate ERP & IT",
+          "Consultancy",
         ],
       },
+
       isoStandardCode: {
         type: String,
         trim: true,
-        deafult: null
+        default: null,
       },
-
 
       jobPosition: {
         type: String,
         enum: [
           "HR",
-
           "CRO",
-          "Sales",
-          "Operation Manager",
+          "sales",
           "Receptionist",
-          "Document Writer",
+          "Document Controller",
           "Consultant",
-          "Consultant Jr.",
-          "IT Officer",
+          "Operation Manager",
+          "Document Writer",
           "ERP Support",
-          "Digital Support",
-
+          "Digital Marketing",
+          "IT Support",
+          "Digital Market",
         ],
       },
 
@@ -165,52 +187,43 @@ const recruitmentSchema = new mongoose.Schema(
           "Permanent",
           "Contract",
           "Intern",
-          "Trainee",
           "Part-Time",
         ],
       },
 
       dateOfJoining: {
-        type: Date,
-      },
-
-      officeType: {
         type: String,
-        enum: ["Branch Office"],
       },
 
       province: {
         type: String,
-        enum: [
-          "koshi",
-          "madhesh",
-          "bagmati",
-          "gandaki",
-          "lumbini",
-          "karnali",
-          "sudurpashchim",
-        ],
+        default: null,
+        trim: true,
+      },
+
+      provinceIndex: {
+        type: Number,
+        min: 1,
+        max: 7,
       },
 
       district: {
         type: String,
         trim: true,
+        default: null,
       },
 
-      office: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Office",
-      },
-
-      reportingManager: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Employee",
+      localLevel: {
+        type: String,
+        trim: true,
+        default: null,
       },
     },
 
-    // =========================================================
-    // EXPERIENCE & DOCUMENTS
-    // =========================================================
+    // =====================================================
+    // EXPERIENCE & DOCUMENT ATTACHMENTS
+    // =====================================================
+
     documents: {
       experienceType: {
         type: String,
@@ -224,70 +237,52 @@ const recruitmentSchema = new mongoose.Schema(
         default: 0,
       },
 
+      // Previous employment history
       previousExperience: {
         type: [previousExperienceSchema],
         default: [],
       },
 
-      resume: {
-        type: String,
+      fresherDocuments: {
+        type: Array,
+        default: [],
       },
 
-      offerLetter: {
-        type: String,
+      experienceDocuments: {
+        type: Array,
+        default: [],
       },
 
-      citizenDoc: {
-        type: String,
-      },
-
-      qualification: {
-        type: String,
-      },
-
-      training: {
-        type: String,
-      },
-
-      experience: {
-        type: String,
-      },
     },
 
-    // =========================================================
+    // =====================================================
     // RECRUITMENT STATUS
-    // =========================================================
+    // =====================================================
+
     recruitmentStatus: {
       type: String,
-      enum: [
-        "Applied",
-        "Screening",
-        "Shortlisted",
-        "Interview",
-        "Selected",
-        "Rejected",
-        "Hired",
-        "Withdrawn",
-      ],
-      default: "Applied",
+      enum: ["admin", "super_admin", "staff"],
+      required: true,
     },
 
-    // =========================================================
+    // =====================================================
     // SYSTEM INFORMATION
-    // =========================================================
-    createdBy: {
+    // =====================================================
+
+    createdBySuper: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee",
+      ref: "staffs_",
+     
     },
 
-    updatedBy: {
+    createdBystaff: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee",
+      ref: "staffs_",
+     
     },
-
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
   },
   {
@@ -296,14 +291,11 @@ const recruitmentSchema = new mongoose.Schema(
   }
 );
 
-
 // =========================================================
 // INDEXES
 // =========================================================
 
-
-
-
+// Personal Email
 recruitmentSchema.index(
   { "contact.personalEmail": 1 },
   { unique: true, sparse: true }
@@ -320,9 +312,6 @@ recruitmentSchema.index(
   { "contact.officeMobile": 1 },
   { unique: true, sparse: true }
 );
-
-
-
 
 // =========================================================
 // MODEL

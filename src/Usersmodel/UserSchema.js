@@ -21,7 +21,7 @@ const staffSchema = new mongoose.Schema(
         // CRO Recruitment Reference
         recruitmentId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Recruitment",
+            ref: "recruitments",
             required: true,
         },
 
@@ -63,11 +63,10 @@ const staffSchema = new mongoose.Schema(
             max: 7,
         },
 
-        district: {
+        districtName: {
             type: String,
             trim: true,
         },
-
         localLevelName: {
             type: String,
             trim: true,
@@ -75,7 +74,7 @@ const staffSchema = new mongoose.Schema(
         isoStandardCode: {
             type: String,
             trim: true,
-            deafult: null
+            default: "",
         },
 
         wardNo: {
@@ -118,7 +117,7 @@ const staffSchema = new mongoose.Schema(
 
         isActive: {
             type: Boolean,
-            default: true,
+            default: false,
         },
 
         resetPasswordToken: {

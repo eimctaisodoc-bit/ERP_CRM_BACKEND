@@ -35,7 +35,12 @@ const {
   Proposal,
   GetProposals,
   DeleteProposal,
-  UpdateProposal,
+
+  Contract,
+  UpdateInstallment,
+    UpdateTermsAndConditions,
+    getOnlyInstallmentTerms
+  // UpdateProposal,
 } = require("../../UserController/staff/staff.controller.sales");
 const {
   ProposalUpload,
@@ -43,6 +48,7 @@ const {
   Meeting_,
   call_,
   Message_,
+  ContractUpload,
 } = require("../../middleware/SalesEvidense");
 const { upload } = require("../../middleware/contractUpload");
 const {
@@ -95,8 +101,14 @@ router.patch("/proposal/:MainID", ProposalUpload.array("file", 1), Proposal);
 
 router.patch("/deleteproposal/:MainID/:id", DeleteProposal);
 router.patch("/getproposal/:MainID", GetProposals);
-router.patch("/updateproposal/:MainID/:id", UpdateProposal);
-router.patch("/contract/:MainID", UpdateProposal);
+
+// router.patch("/updateproposal/:MainID/:id", UpdateProposal);// temp may be removed later
+
+router.patch("/uploadContract/:MainID", ContractUpload.array("file", 5), Contract);
+
+router.patch("/updateInstallment/:MainID", UpdateInstallment);
+router.patch("/updateTermsAndConditions/:MainID", UpdateTermsAndConditions);
+router.get("/getInstallmentTerms/:MainID", getOnlyInstallmentTerms);
 
 router.get("/getFiles", getSalesEvidenceFiles);
 

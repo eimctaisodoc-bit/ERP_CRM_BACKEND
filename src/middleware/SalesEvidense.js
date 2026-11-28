@@ -15,7 +15,11 @@ const Meeting = path.join(baseDir, "salesEvidence/meeting");
 const Message = path.join(baseDir, "salesEvidence/message");
 const call = path.join(baseDir, "salesEvidence/call");
 
-[proposalDir, contractDir, Note, Meeting, Message, call].forEach((dir) => {
+const CustomNote=path.join(baseDir,"customNote")
+
+const Recruitment = path.join(baseDir, "salesEvidence/recruitment");
+
+[proposalDir, contractDir, Note, Meeting, Message, call, Recruitment,CustomNote].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -54,6 +58,38 @@ const imageFilter = (req, file, cb) => {
   }
 };
 
+const recruitmentFileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    "image/png",
+    "image/jpg",
+    "image/jpeg",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ];
+  const allowedExtensions = [".png", ".jpg", ".jpeg", ".docx"];
+  const extension = path.extname(file.originalname).toLowerCase();
+  if (!allowedTypes.includes(file.mimetype) || !allowedExtensions.includes(extension)) {
+    cb(new Error("Only PNG, JPG, JPEG and DOCX files are allowed!"), false);
+    return;
+  }
+  cb(null, true);
+};
+
+const CustomNoteFileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    "image/png",
+    "image/jpg",
+    "image/jpeg",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/pdf",
+  ];
+  const allowedExtensions = [".png", ".jpg", ".jpeg", ".docx"];
+  const extension = path.extname(file.originalname).toLowerCase();
+  if (!allowedTypes.includes(file.mimetype) || !allowedExtensions.includes(extension)) {
+    cb(new Error("Only PNG, JPG, JPEG and DOCX files are allowed!"), false);
+    return;
+  }
+  cb(null, true);
+};
 // DOCX filter for proposals
 const proposalFileFilter = (req, file, cb) => {
   if (
@@ -67,9 +103,9 @@ const proposalFileFilter = (req, file, cb) => {
 };
 
 // Contract uploads
-const Salesupload = multer({
+const ContractUpload = multer({
   storage: createStorage(contractDir),
-  fileFilter: imageFilter,
+  fileFilter: proposalFileFilter,
   limits: {
     fileSize: 50 * 1024 * 1024
   }
@@ -117,15 +153,29 @@ const call_ = multer({
   }
 });
 
+const Recruitment_ = multer({
+  storage: createStorage(Recruitment),
+  fileFilter: recruitmentFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
+});
 
-
-
+const CustomNote_=multer({
+  storage:createStorage(CustomNote),
+  fileFilter: CustomNoteFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
+})
 
 module.exports = {
-  Salesupload,
+  ContractUpload,
   ProposalUpload,
   Note_,
   Meeting_,
   call_,
-  Message_
+  Message_,
+  Recruitment_,
+  CustomNote_
 };

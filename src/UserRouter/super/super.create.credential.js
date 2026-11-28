@@ -1,7 +1,9 @@
 const express = require('express');
 const { DeleteUser, getAllLogedUsers, GetAdminUserById, EditStatus, EditAdmin } = require('../../UserController/super/controller.branch');
+
 const UserSchema = require('../../Usersmodel/UserSchema');
 const createSendCreditController = require('../../UserController/sendPasswordReset');
+
 const router = express.Router();
 
 const SendCredit = createSendCreditController((req) => UserSchema.findById(req.params.id));
@@ -16,6 +18,8 @@ router.delete('/deleteadmin', DeleteUser);
 
 router.get('/getCredit', getAllLogedUsers);
 
+
+
 router.get('/:id', GetAdminUserById);
 
 router.patch('/editStatus/:id', EditStatus);
@@ -23,8 +27,13 @@ router.patch('/editStatus/:id', EditStatus);
 router.patch('/edit/:id', EditAdmin);
 
 router.patch('/sendCredit/:id', SendCredit);
+// Cleints
+
+
 
 router.get('/', (req, res) => {
     res.send("Running Super Admin Recruitment Route")
 });
+
+
 module.exports = router

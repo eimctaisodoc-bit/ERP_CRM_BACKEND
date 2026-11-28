@@ -5,8 +5,7 @@ const clientsRegisters = new mongoose.Schema(
     organizationID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "organizations",
-      required: true,
-      unique: true,
+
     },
     role: {
       type: String,
@@ -60,6 +59,18 @@ const clientsRegisters = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    isConvertedToBusiness: {
+      type: Boolean,
+      default: false
+    },
+    lastseen: {
+      type: [String],
+      default: []
+    },
+    isActive:{
+      type: Boolean,
+      default: true
+    }
   },
   {
     timestamps: true,
@@ -67,4 +78,4 @@ const clientsRegisters = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("clientsregisters", clientsRegisters);
+module.exports = mongoose.model("clientsCredit", clientsRegisters);

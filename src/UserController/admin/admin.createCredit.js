@@ -3,8 +3,9 @@ const mongoose = require("mongoose");
 const UserSchema = require("../../Usersmodel/UserSchema");
 const clientsregisters = require("../../Usersmodel/client/client.Register_schema");
 const sendAccountCredentialsMail = require("../../middleware/Sendpw");
-
-console.log("UserSchema model type:", UserSchema.collection.name);
+const { disconnectAccountSockets } = require("../../socket/socket");
+const Recruitment = require("../../Usersmodel/admini/AdminRecruitment.model.js");
+console.log("UserSchema model type:", Recruitment.collection.name);
 
 
 const normalizeClient = (client) => {
@@ -46,11 +47,27 @@ const findAccountById = async (id, requestedRole) => {
 const AdminGenerated = async (req, res) => {
     try {
         const payload = req.body;
+        const recruitmentId = payload.recruitmentId;
+
+        if (!recruitmentId || !mongoose.isValidObjectId(recruitmentId)) {
+            return res.status(400).json({
+                success: false,
+                message: "A valid recruitment record is required"
+            });
+        }
 
         if (payload.password !== payload.confirmPassword) {
             return res.status(400).json({
                 success: false,
                 message: "Password and Confirm Password do not match"
+            });
+        }
+
+        const recruitment = await Recruitment.findById(recruitmentId);
+        if (!recruitment) {
+            return res.status(400).json({
+                success: false,
+                message: "Recruitment record was not found"
             });
         }
 
@@ -91,15 +108,17 @@ const AdminGenerated = async (req, res) => {
 
             Prvince: payload.Prvince,
             provinceName: payload.provinceName,
-            districts: payload.districts,
+            districtName: payload.districtName,
             localLevelName: payload.localLevelName,
 
             officeEmail: payload.officeEmail,
             officeMobile: payload.officeMobile,
-
+            isoStandardCode: payload.isoStandardCode,
+            toleName: payload.toleName,
+            wardNo: payload.wardNo,
             username: payload.username,
             password: hashedPassword,
-
+            recruitmentId: payload.recruitmentId,
             isActive: typeof payload.isActive === "boolean"
                 ? payload.isActive
                 : payload.status === "active",
@@ -108,6 +127,21 @@ const AdminGenerated = async (req, res) => {
             lat: payload.lat,
             lng: payload.lng
         });
+
+        const generatedId = newUser?._id;
+        if (!generatedId || !mongoose.isValidObjectId(generatedId)) {
+            throw new Error("Created admin record is missing a valid ID; recruitment was not activated.");
+        }
+        console.log("Generated ID:", payload.recruitmentId);
+
+        const updatedRecruitment = await Recruitment.findByIdAndUpdate(
+            payload.recruitmentId,
+            { $set: { isActive: true } },
+            { new: true, runValidators: true }
+        );
+        if (!updatedRecruitment) {
+            throw new Error("Matching recruitment record was not found; recruitment was not activated.");
+        }
 
         try {
             await sendAccountCredentialsMail({
@@ -189,12 +223,32 @@ const DeleteUser = async (req, res) => {
 
 
 const getAllLogedUsers = async (req, res) => {
+    console.log(req.params, req.query);
+    const { provinceName, districtName, localLevel } = req.query || req.query.params;
+    console.log(req.user.decoded.username);
+console.log(typeof provinceName )
     try {
         const [staffUsers, clients] = await Promise.all([
-            UserSchema.find({ role: "staff" })
+            UserSchema.find({
+                role: "staff",
+                "provinceName": provinceName,
+                "districtName": districtName,
+                "localLevelName": localLevel,
+                "isoStandardCode": "iso21001"
+            })
                 .select("username role fullname designation jobRole officeEmail officeMobile province provinceName districtName localLevel isActive")
+               .populate({
+                    path: "recruitmentId",
+                    // select: "isActive employment createdAt",
+                })
                 .lean(),
-            clientsregisters.find({ role: "client" })
+            clientsregisters.find({
+                role: "client",
+                "provinceName": provinceName,
+                "districtName": districtName,
+                "localLevelName": localLevel,
+                "isoStandardCode": "iso21001"
+            })
                 .select("organizationID role username province district officeEmail officaPhone handledBranches isActive")
                 .lean()
         ]);
@@ -532,6 +586,10 @@ const EditStatus = async (req, res) => {
                 success: false,
                 msg: "User not found"
             });
+        }
+
+        if (!isActive) {
+            disconnectAccountSockets(user._id, normalizedRole || user.role);
         }
 
         return res.status(200).json({

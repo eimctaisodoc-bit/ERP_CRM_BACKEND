@@ -19,6 +19,10 @@ const { initSocket } = require("./socket/socket");
 const loginRoute = require("./login/LoginController");
 
 const app = express();
+const allowedOrigins = [
+  process.env.FRONTEND_URL_PROD,
+  "http://localhost:5173",
+].filter(Boolean);
 
 app.use("/backend/public", express.static(path.join(__dirname, "../public")));
 
@@ -27,19 +31,11 @@ app.use(express.urlencoded({ extended: true })); // parse form bodies
 app.use(cookieParser());
 app.use(
   cors({
-    //  origin: "*",
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   }),
 );
-// app.use(
-//   cors({
-//     origin: "*",
-//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-//     allowedHeaders: ["Content-Type", "Authorization"]
-//   })
-// );
 
 const bcrypt = require("bcrypt");
 const UserSchema = require("./Usersmodel/UserSchema");
@@ -53,15 +49,14 @@ app.get("/dummy", async (req, res) => {
 });
 
 // ===========================
-// role:admin, pw:Jlbn#NyH,
-// Username:sumanthapa7954#
-// jobrole:cro
 
-// manojthakur1378!
-// sales
-// bvXMRulL
-
+// aNmnVAk@9Fx# -->menukakharel2838*
+// r!Y3EsgaJv2K--->laxmidahal4180*
+// manojthakur6165#
+// GNZ7chY4rW#i
 // <<<<<<< HEAD
+// RJ5S@G5tG6cv
+// karkibahadurnisha2225@
 
 app.get("/", async (req, res) => {
   const user = await UserSchema.findOne();

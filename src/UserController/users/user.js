@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const userScheme = require('../../Usersmodel/UserSchema.js')
 const Branch = require("../../Usersmodel/supper/model.branch")
+const clientsRegisters = require("../../Usersmodel/client/client.Register_schema");
 
 const VerifyLoginUser = async (req, res, next) => {
     /* console.log("Login attempt:", req.body); */
@@ -25,8 +26,10 @@ const getUserById = async (req, res) => {
             return res.status(400).json({ message: "Invalid user id" });
         }
 
-        const user = await userScheme.findById({ _id: id })
-            || await Branch.findById({ _id: id });
+        const projection = "-password -resetPasswordToken -resetPasswordExpire";
+        const user = await userScheme.findById(id).select(projection)
+            || await Branch.findById(id).select(projection)
+            || await clientsRegisters.findById(id).select(projection);
 
 
         if (!user) {

@@ -7,7 +7,7 @@ const clientsRegisters = require("../Usersmodel/client/client.Register_schema");
 
 const getAccountModel = (role) => {
   if (role === "admin") return Branch;
-  if (role === "staff") return UserSchema;
+  if (role === "staff" || role === "super_admin") return UserSchema;
   if (role === "client") return clientsRegisters;
   return null;
 };

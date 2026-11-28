@@ -7,6 +7,7 @@ const sendAccountCredentialsMail = require("../../middleware/Sendpw");
 const Branch = require("../../Usersmodel/supper/model.branch");
 const LoginSchema = require("../../Usersmodel/staff/userSchema.js");
 const Recruitment = require("../../Usersmodel/admini/AdminRecruitment.model.js");
+const { disconnectAccountSockets } = require("../../socket/socket");
 
 const { error } = require("console");
 
@@ -374,6 +375,9 @@ const EditBranch = async (req, res) => {
         }
 
         await record.save();
+        if (record.isActive === false) {
+            disconnectAccountSockets(record._id, record.role || getTargetRole(req));
+        }
         return res.status(200).json({
             success: true,
             message: "User updated successfully",
@@ -526,6 +530,9 @@ const EditBranchStatus = async (req, res) => {
         }
 
         await record.save();
+        if (record.isActive === false) {
+            disconnectAccountSockets(record._id, record.role || getTargetRole(req));
+        }
         return res.status(200).json({
             success: true,
             message: "User status updated successfully",
@@ -542,136 +549,136 @@ const EditBranchStatus = async (req, res) => {
 // ====================================================================================
 
 
-const AdminGenerated = async (req, res) => {
-    try {
-        const payload = req.body;
-        /* console.log("Payload received:", payload); */
+// const AdminGenerated = async (req, res) => {
+//     try {
+//         const payload = req.body;
+//         /* console.log("Payload received:", payload); */
 
-        const provinceIndex = Number(payload.provinceIndex);
-        const district = payload.district?.trim();
-        if (!Number.isInteger(provinceIndex) || provinceIndex < 1 || provinceIndex > 7 || !district) {
-            return res.status(400).json({
-                success: false,
-                message: "A valid province index and district are required"
-            });
-        }
+//         const provinceIndex = Number(payload.provinceIndex);
+//         const district = payload.district?.trim();
+//         if (!Number.isInteger(provinceIndex) || provinceIndex < 1 || provinceIndex > 7 || !district) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "A valid province index and district are required"
+//             });
+//         }
 
-        if (payload.password !== payload.confirmPassword) {
-            return res.status(400).json({
-                success: false,
-                message: "Password and Confirm Password do not match"
-            });
-        }
+//         if (payload.password !== payload.confirmPassword) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "Password and Confirm Password do not match"
+//             });
+//         }
 
-        const duplicate = await UserSchema.findOne({
-            $or: [
-                { officeEmail: payload.officeEmail },
-                { officeMobile: payload.officeMobile },
-                { username: payload.username }
-            ]
-        });
+//         const duplicate = await UserSchema.findOne({
+//             $or: [
+//                 { officeEmail: payload.officeEmail },
+//                 { officeMobile: payload.officeMobile },
+//                 { username: payload.username }
+//             ]
+//         });
 
-        if (duplicate) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    duplicate.officeEmail === payload.officeEmail
-                        ? "Office Email already exists"
-                        : duplicate.officeMobile === payload.officeMobile
-                            ? "Office Mobile already exists"
-                            : "Username already exists"
-            });
-        }
+//         if (duplicate) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message:
+//                     duplicate.officeEmail === payload.officeEmail
+//                         ? "Office Email already exists"
+//                         : duplicate.officeMobile === payload.officeMobile
+//                             ? "Office Mobile already exists"
+//                             : "Username already exists"
+//             });
+//         }
 
-        if (payload.role === "admin") {
+//         if (payload.role === "admin") {
 
-            const totalAdmins = await UserSchema.countDocuments({
-                role: "admin"
-            });
+//             const totalAdmins = await UserSchema.countDocuments({
+//                 role: "admin"
+//             });
 
-            if (totalAdmins >= 7) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Maximum 7 admin accounts allowed"
-                });
-            }
+//             if (totalAdmins >= 7) {
+//                 return res.status(400).json({
+//                     success: false,
+//                     message: "Maximum 7 admin accounts allowed"
+//                 });
+//             }
 
-            const provinceExists = await UserSchema.findOne({
-                role: "admin",
-                provinceName: payload.provinceName
-            });
+//             const provinceExists = await UserSchema.findOne({
+//                 role: "admin",
+//                 provinceName: payload.provinceName
+//             });
 
-            if (provinceExists) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Admin already assigned to ${payload.provinceName}`
-                });
-            }
-        }
-
-
-        const plainPassword = payload.password;
+//             if (provinceExists) {
+//                 return res.status(400).json({
+//                     success: false,
+//                     message: `Admin already assigned to ${payload.provinceName}`
+//                 });
+//             }
+//         }
 
 
-        const hashedPassword = await bcrypt.hash(plainPassword, 10);
+//         const plainPassword = payload.password;
 
-        const newUser = await Branch.create({
-            fullName: payload.fullName,
-            designation: payload.designation,
-            jobRole: payload.jobRole,
 
-            personalMobile: payload.personalMobile,
-            personalEmail: payload.personalEmail,
+//         const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-            province: provinceIndex,
-            provinceName: payload.provinceName,
-            districtName: district,
-            localLevel: payload.localLevelName,
+//         const newUser = await Branch.create({
+//             fullName: payload.fullName,
+//             designation: payload.designation,
+//             jobRole: payload.jobRole,
 
-            officeEmail: payload.officeEmail,
-            officeMobile: payload.officeMobile,
+//             personalMobile: payload.personalMobile,
+//             personalEmail: payload.personalEmail,
 
-            username: payload.username,
-            password: hashedPassword,
+//             province: provinceIndex,
+//             provinceName: payload.provinceName,
+//             districtName: district,
+//             localLevel: payload.localLevelName,
 
-            isActive: typeof payload.isActive === "boolean"
-                ? payload.isActive
-                : payload.status === "active",
-            role: payload.role,
+//             officeEmail: payload.officeEmail,
+//             officeMobile: payload.officeMobile,
 
-            latitude: payload.lat,
-            longitude: payload.lng
-        });
+//             username: payload.username,
+//             password: hashedPassword,
 
-        try {
-            await sendAccountCredentialsMail({
-                to: payload.officeEmail,
-                userName: payload.fullName,
-                username: payload.username,
-                password: plainPassword,
-                role: payload.role
-            });
+//             isActive: typeof payload.isActive === "boolean"
+//                 ? payload.isActive
+//                 : payload.status === "active",
+//             role: payload.role,
 
-            /* console.log("Credentials email sent"); */
-        } catch (mailError) {
-            console.error("Email Error:", mailError.message);
-        }
+//             latitude: payload.lat,
+//             longitude: payload.lng
+//         });
 
-        return res.status(201).json({
-            success: true,
-            message: "Admin created successfully",
-            data: newUser
-        });
+//         try {
+//             await sendAccountCredentialsMail({
+//                 to: payload.officeEmail,
+//                 userName: payload.fullName,
+//                 username: payload.username,
+//                 password: plainPassword,
+//                 role: payload.role
+//             });
 
-    } catch (error) {
-        console.error(error);
+//             /* console.log("Credentials email sent"); */
+//         } catch (mailError) {
+//             console.error("Email Error:", mailError.message);
+//         }
 
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
+//         return res.status(201).json({
+//             success: true,
+//             message: "Admin created successfully",
+//             data: newUser
+//         });
+
+//     } catch (error) {
+//         console.error(error);
+
+//         return res.status(500).json({
+//             success: false,
+//             message: error.message
+//         });
+//     }
+// };
 
 const EditAdmin = async (req, res) => {
     try {
@@ -723,7 +730,8 @@ const EditAdmin = async (req, res) => {
             officeEmail: "officeEmail",
             officeMobile: "officeMobile",
             provinceName: "provinceName",
-            district: "districtName",
+            districtName: "districtName",
+            isoStandardCode: "isoStandardCode",
             localLevelName: "localLevel"
         };
         for (const [payloadField, schemaField] of Object.entries(editableFields)) {
@@ -844,6 +852,9 @@ const getAllLogedUsers = async (req, res) => {
     }
 };
 
+
+
+
 const GetAdminUserById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -852,7 +863,7 @@ const GetAdminUserById = async (req, res) => {
         }
 
         const user = await UserSchema.findById(id)
-            .select("_id fullname username role designation jobRole orgName officeEmail officeMobile personalEmail personalMobile province provinceName districtName localLevel latitude longitude isActive")
+            .select("_id fullname username role designation jobRole orgName officeEmail officeMobile personalEmail personalMobile province provinceName districtName isoStandardCode localLevel latitude longitude isActive")
             .lean();
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
@@ -894,6 +905,10 @@ const EditStatus = async (req, res) => {
                 success: false,
                 msg: "User not found"
             });
+        }
+
+        if (!isActive) {
+            disconnectAccountSockets(user._id, user.role);
         }
 
         const result = user.toObject();
@@ -1097,7 +1112,7 @@ module.exports = {
     getAllBranches,
     EditBranchStatus,
     getBranchManagementModel,
-    getTargetRole
+    getTargetRole,
 };
 
 // /media/ranjan/New Volume2/EIMCTA_ERP/backend/src/UserRouter/super/super.create.credential.js --> AdminGenerated used here but not exported, so it is ignored in the module.exports.

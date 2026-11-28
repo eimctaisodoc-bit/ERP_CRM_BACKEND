@@ -1,5 +1,6 @@
 const express = require('express');
-const CreateClientCredential = require('../../UserController/staff/staff.controller.credi');
+const { CreateClientCredential } = require('../../UserController/client/client.controller.recruitment');
+
 const router = express.Router();
 
 

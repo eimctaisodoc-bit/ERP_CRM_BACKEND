@@ -6,6 +6,7 @@ require('dotenv').config()
     id: user.id,
     role: user.role,
     username: user.username,
+    fullName: user.fullName,
     sessionRef: user.sessionRef
   }, process.env.Secrete_KEY, {
     expiresIn: '8hrs',

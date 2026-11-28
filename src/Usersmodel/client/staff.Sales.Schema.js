@@ -14,7 +14,7 @@ const AlternativeContactSchema = new mongoose.Schema(
 
 const NoteSchema = new mongoose.Schema(
   {
-    type: { type: String, deafult: "note" },
+    type: { type: String, default: "note" },
     note: { type: String, trim: true },
     attachments: {
       type: Array,
@@ -26,7 +26,7 @@ const NoteSchema = new mongoose.Schema(
 
 const EmailSchema = new mongoose.Schema(
   {
-    type: { type: String, deafult: "email" },
+    type: { type: String, default: "email" },
     to: { type: [String], default: [] },
     subject: { type: String, trim: true },
     message: { type: String, trim: true },
@@ -37,12 +37,12 @@ const EmailSchema = new mongoose.Schema(
 
 const MessageSchema = new mongoose.Schema(
   {
-    type: { type: String, deafult: "message" },
+    type: { type: String, default: "message" },
     note: { type: String, trim: true },
     attachments: { type: [String], default: [] },
     Sdate: { type: String, default: "" },
     Edate: { type: String, default: "" },
-    time: { type: String, deafult: "" },
+    time: { type: String, default: "" },
   },
   { _id: true, timestamps: true },
 );
@@ -152,34 +152,38 @@ const Stage1Schema = new mongoose.Schema(
 const ContractPdfInfoSchema = new mongoose.Schema(
   {
     attachments: { type: Array, default: [] },
-    uploadedAt: { type: Date, default: Date.now },
-    to: { type: Array, default: [] },
+    sendto: { type: Array, default: [] },
     subject: { type: String, default: "" },
     message: { type: String, default: "" },
+     preparedBy: { type: String, default: "" },
+
   },
   { _id: true },
 );
 
 const ProposalInfoSchema = new mongoose.Schema(
   {
-    sendto: { type: [String], deafult: [] },
-    termsAndConditions: { type: [String], default: [] },
+    sendto: { type: [String], default: [] },
+    subject: { type: String, default: "" },
+    message: { type: String, default: "" },
+    status: { type: String, default: "ready" },
+    emailSent: { type: Boolean, default: false },
+    emailInfo: {
+      to: { type: [String], default: [] },
+      attemptedTo: { type: [String], default: [] },
+      subject: { type: String, default: "" },
+      message: { type: String, default: "" },
+      sentAt: { type: Date, default: null },
+    },
+    emailResults: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    emailErrors: { type: [mongoose.Schema.Types.Mixed], default: [] },
     installments: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    termsAndConditions: { type: [mongoose.Schema.Types.Mixed], default: [] },
     proposalType: { type: String, default: "" },
     proposalSendVia: { type: String, default: "" },
     scopeOfServices: { type: String, default: "" },
-    objectivesDeliverables: { type: String, default: "" },
     preparedBy: { type: String, default: "" },
-    proposalDateFrom: { type: String, default: "" },
-    proposalDateTo: { type: String, default: "" },
-    duration: { type: String, default: "" },
-    scheduleItems: { type: [mongoose.Schema.Types.Mixed], default: [] },
     attachments: { type: [String], default: [] },
-    status: {
-      type: String,
-      enum: ["ready", "processing", "sent"],
-      default: "ready",
-    },
   },
   { _id: true, timestamps: true },
 );
@@ -188,6 +192,9 @@ const Stage2Schema = new mongoose.Schema({
   proposalInfo: { type: [ProposalInfoSchema], default: [] },
 });
 
+const Stage3Schema = new mongoose.Schema({
+  contractInfo: { type: [ContractPdfInfoSchema], default: [] },
+});
 const OrganizationDetailsSchema = new mongoose.Schema(
   {
     organizationName: {
@@ -307,7 +314,14 @@ const OrganizationDetailsSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
-
+    installment: {
+      type: Array,
+      default: () => [],
+    },
+    termsCondition: {
+      type: Array,
+      default: () => [],
+    },
     alternativeContacts: {
       type: [AlternativeContactSchema],
       default: [],
@@ -652,7 +666,7 @@ const PipelineInfoSchema = new mongoose.Schema(
       },
 
       Stage3: {
-        type: [ContractPdfInfoSchema],
+        type: [Stage3Schema],
         default: [],
         currentStage: 3,
         nextStage: 4,

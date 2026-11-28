@@ -7,6 +7,7 @@ router.use((req, res, next) => {
     router.use('/recruitment', require('./client.recruit.js'))
     router.use('/sales', require('./sales/client.sales.js'));
     router.use('/dashboard', require('./sales/client.sales.js'));
+    router.use('/note', require('./client.cnote.js'));
     next();
 
 });
